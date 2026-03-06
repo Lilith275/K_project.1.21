@@ -634,7 +634,7 @@ margin: 0 15px calc(8px + var(--safe-bottom)); /* 减小底部间距 */
 }
 
 .profile-date {
-    font-size: 13px;
+    font-size: 10px improtent!;
     color: rgba(255, 181, 193, 0.938);
     font-weight: 300;
     letter-spacing: 2px;
@@ -644,7 +644,7 @@ margin: 0 15px calc(8px + var(--safe-bottom)); /* 减小底部间距 */
 
 /* 签名：增加溢出隐藏，防止文字过长撑乱布局 */
 .profile-signature {
-    font-size: 8px;
+    font-size: 8px improtent!;
     color: rgba(255, 159, 175, 0.938);
     margin-top: 10px;
     font-style: italic;
