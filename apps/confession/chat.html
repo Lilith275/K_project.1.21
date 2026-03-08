@@ -1110,6 +1110,7 @@ async tellAIWatching(song) {
 },
 
         // --- 3. 导入逻辑 (支持载入/追加) ---
+// --- 3. 导入逻辑 (支持载入/追加) ---
         async doImport(isAppend = false) {
             const input = document.getElementById('uidInput').value.trim();
             if (!input) return alert("请输入歌单ID或链接");
@@ -1123,10 +1124,12 @@ async tellAIWatching(song) {
             btn.disabled = true;
 
             try {
-const cookie = localStorage.getItem('wyy_cookie') || "";
-const res = await fetch(`${this.API_BASE}/song/url?id=${song.id}&cookie=${encodeURIComponent(cookie)}`);
+                const cookie = localStorage.getItem('wyy_cookie') || "";
+                // 正确的接口应该是 playlist/track/all 或者 playlist/detail
+                const res = await fetch(`${this.API_BASE}/playlist/track/all?id=${finalId}&cookie=${encodeURIComponent(cookie)}&t=${Date.now()}`);
                 const data = await res.json();
 
+                // 网易云接口返回的是 songs 数组
                 if (data.songs && Array.isArray(data.songs)) {
                     const newSongs = data.songs.map(s => ({
                         id: s.id,
@@ -1146,16 +1149,16 @@ const res = await fetch(`${this.API_BASE}/song/url?id=${song.id}&cookie=${encode
                     document.getElementById('uidInput').value = ""; 
                     alert(isAppend ? `成功追加 ${newSongs.length} 首歌` : `已重新载入 ${newSongs.length} 首歌`);
                 } else {
-                    alert("未找到歌单，请确认已设为公开");
+                    alert("未找到歌单，请确认歌单ID正确且已设为公开");
                 }
             } catch (e) {
-                alert("同步失败，请检查网络");
+                console.error("导入报错详情:", e);
+                alert("同步失败，请检查网络或API地址");
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
             }
         },
-
         // --- 4. 界面交互与账号 ---
         invite() {
             if(confirm("发起一起听邀请？")) {
@@ -1382,7 +1385,7 @@ updateUI(song) {
             }
         }
     } // 这里关掉 toggle
-}; // 这里关掉 MusicModule 对象
+}; 
 
 MusicModule.init(); 
 </script>
