@@ -732,135 +732,129 @@ function initEmoji() {
                 replyTimer = setTimeout(() => fetchAI(base, key, model, text), 1000);
             }
 
-            // API 调用逻辑（完全保留你的设置）
-    async function fetchAI(base, key, model, userInputText) {
-    // --- 核心修复：如果传进来的内容是空的，直接返回，不执行后面的逻辑 ---
-    if (!userInputText || typeof userInputText !== 'string') {
-        console.warn("[后台提醒] 收到无效的文本请求，已跳过处理防止报错。");
-        return; 
-    }
+// API 调用逻辑（完整整合版）
+async function fetchAI(base, key, model, userInputText) {
+    // 1. 基础拦截：防空包报错
+    if (!userInputText || userInputText.trim() === "") return;
+
+    // 2. 核心修复：清理历史记录中的“空包”
+    // 确保你的全局历史变量名为 messageHistory 或 chatHistory（这里统一为 messageHistory）
+    const cleanHistory = (typeof messageHistory !== 'undefined' ? messageHistory : []).filter(item => 
+        item && item.parts && item.parts[0] && (item.parts[0].text || item.parts[0].inline_data)
+    );
 
     isTyping = true;
-                try {
-                    // === 新增：从生活手册读取上下文 (不修改原始逻辑，仅作为变量注入) ===
-                    let lifeManualInfo = "";
-                    // 30% 概率让 AI 注意到手册内容，保持神秘感
-                    if (Math.random() < 0.3) {
-                        const finData = JSON.parse(localStorage.getItem('k_finance') || '[]');
-                        const noteData = JSON.parse(localStorage.getItem('k_notes') || '[]');
-                        const diaryData = JSON.parse(localStorage.getItem('k_diaries') || '[]');
-                        const diaryAuth = localStorage.getItem('k_ai_diary_auth') === 'true';
+    try {
+        // === 从生活手册读取上下文 ===
+        let lifeManualInfo = "";
+        if (Math.random() < 0.3) {
+            const finData = JSON.parse(localStorage.getItem('k_finance') || '[]');
+            const noteData = JSON.parse(localStorage.getItem('k_notes') || '[]');
+            const diaryData = JSON.parse(localStorage.getItem('k_diaries') || '[]');
+            const diaryAuth = localStorage.getItem('k_ai_diary_auth') === 'true';
 
-                        lifeManualInfo = "\n【当前观察到的生活碎片】：";
-                        if (finData.length > 0) {
-                            const f = finData[finData.length-1];
-                            lifeManualInfo += `最近账本记录了${f.category}(${f.amount}元)；`;
-                        }
-                        if (noteData.length > 0) {
-                            lifeManualInfo += `备忘录里新写了《${noteData[noteData.length-1].title}》；`;
-                        }
-                        if (diaryData.length > 0) {
-                            if (diaryAuth) {
-                                lifeManualInfo += `读到了对方的日记："${diaryData[diaryData.length-1].content.substring(0, 30)}..."；`;
-                            } else {
-                                lifeManualInfo += `发现对方写了新日记，但我没有权限阅读，这让我很好奇。`;
-                            }
-                        }
-                    }
-
-                    const s = localStorage.getItem('k_world_Chrollo_setting') || "一个神秘的告解者";
-                    const m = localStorage.getItem('k_world_Chrollo_memory') || "暂无重要记忆";
-                    
-                    // 将生活手册信息拼接到 Prompt 中
-                    const dynamicPrompt = `【人设、背景与风格】:${s}\n【记忆】:${m}${lifeManualInfo}\n请严格遵守人设，自然对话。如果提到了生活碎片，要像观察者一样不经意地流露，不要生硬罗列。`;
-
-                    let url, body, headers = { 'Content-Type': 'application/json' };
-
-                // --- 核心请求逻辑开始 ---
-    if (model.includes('gpt') || model.includes('o1')) { 
-        url = `${base.replace(/\/$/, '')}/v1/chat/completions`;
-        headers['Authorization'] = `Bearer ${key}`;
-        const openaiMessages = [
-            { role: "system", content: dynamicPrompt },
-            ...messageHistory.map(msg => ({
-                role: msg.role === 'model' ? 'assistant' : 'user',
-                // GPT 暂时只处理文本，保持原样
-                content: msg.parts[0].text || "发送了内容" 
-            }))
-        ];
-        body = JSON.stringify({ model: model, messages: openaiMessages, temperature: 0.85 });
-    } else if (model.includes('claude')) {
-        url = `${base.replace(/\/$/, '')}/v1/messages`;
-        headers['x-api-key'] = key;
-        headers['anthropic-version'] = '2023-06-01';
-        body = JSON.stringify({
-            model: model,
-            system: dynamicPrompt,
-            messages: messageHistory.map(msg => ({
-                role: msg.role === 'model' ? 'assistant' : 'user',
-                content: msg.parts[0].text || "发送了内容"
-            })),
-            max_tokens: 2048
-        });
-    } else {
-        // === Gemini 逻辑（支持看图的关键） ===
-        // 强制使用 v1beta 路径，避免 v1 接口无法处理多模态
-        const cleanBase = base.replace(/\/$/, '');
-        url = cleanBase.includes('/v1beta') ? 
-            `${cleanBase}/models/${model}:generateContent?key=${key}` : 
-            `${cleanBase}/v1beta/models/${model}:generateContent?key=${key}`;
-        
-        // 注意：这里不再使用 .map 过滤，而是直接发送完整的 messageHistory
-        // 这样里面的 inline_data (图片) 才能发给 AI
-        body = JSON.stringify({
-            system_instruction: { parts: [{ text: dynamicPrompt }] }, 
-            contents: messageHistory, 
-            generationConfig: { temperature: 0.85, maxOutputTokens: 2048 }
-        });
-    }
-
-    // 发送请求并处理结果
-    const res = await fetch(url, { method: 'POST', headers: headers, body: body });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message || "API Error");
-
-    let fullText = "";
-    if (data.choices) { 
-        fullText = data.choices[0].message.content;
-    } else if (data.content && Array.isArray(data.content) && data.content[0].text) { 
-        fullText = data.content[0].text;
-    } else if (data.candidates && data.candidates[0].content) { 
-        // Gemini 的返回路径
-        fullText = data.candidates[0].content.parts[0].text;
-    }
-    // --- 核心请求逻辑结束 ---
-                    // 如果用户在对话中提到了密码 1111，自动解锁 AI 的日记阅读权限
-                    if (userInputText.includes("1111")) {
-                        localStorage.setItem('k_ai_diary_auth', 'true');
-                    }
-
-                    messageHistory.push({ role: "model", parts: [{ text: fullText }] });
-                    localStorage.setItem('k_history', JSON.stringify(messageHistory));
-
-                    const fragments = fullText.split(/\n+|(?<=[。！？])\s+/).filter(s => s.trim());
-                    for (const f of fragments) {
-                        const bubble = addBubble('ai', '');
-                        await typeWriter(f, bubble);
-                        await new Promise(r => setTimeout(r, 800));
-                    }
-                    extractMemorySilently(base, key, model, userInputText, fullText);
-
-                } catch (e) {
-                    console.error(e);
-                    addBubble('ai', "……（信号由于念压变得不稳定）");
-                } finally { 
-                    isTyping = false; 
+            lifeManualInfo = "\n【当前观察到的生活碎片】：";
+            if (finData.length > 0) {
+                const f = finData[finData.length-1];
+                lifeManualInfo += `最近账本记录了${f.category}(${f.amount}元)；`;
+            }
+            if (noteData.length > 0) {
+                lifeManualInfo += `备忘录里新写了《${noteData[noteData.length-1].title}》；`;
+            }
+            if (diaryData.length > 0) {
+                if (diaryAuth) {
+                    lifeManualInfo += `读到了对方的日记："${diaryData[diaryData.length-1].content.substring(0, 30)}..."；`;
+                } else {
+                    lifeManualInfo += `发现对方写了新日记，但我没有权限阅读，这让我很好奇。`;
                 }
             }
-            async function extractMemorySilently(base, key, model, uText, aText) {
-                // 原有记忆提取逻辑
-            }
+        }
 
+        const s = localStorage.getItem('k_world_Chrollo_setting') || "一个神秘的告解者";
+        const m = localStorage.getItem('k_world_Chrollo_memory') || "暂无重要记忆";
+        const dynamicPrompt = `【人设、背景与风格】:${s}\n【记忆】:${m}${lifeManualInfo}\n请严格遵守人设，自然对话。如果提到了生活碎片，要像观察者一样不经意地流露。`;
+
+        let url, body, headers = { 'Content-Type': 'application/json' };
+
+        // --- 核心请求逻辑开始 ---
+        if (model.includes('gpt') || model.includes('o1')) { 
+            url = `${base.replace(/\/$/, '')}/v1/chat/completions`;
+            headers['Authorization'] = `Bearer ${key}`;
+            body = JSON.stringify({ 
+                model: model, 
+                messages: [
+                    { role: "system", content: dynamicPrompt },
+                    ...cleanHistory.map(msg => ({
+                        role: msg.role === 'model' ? 'assistant' : 'user',
+                        content: msg.parts[0].text || "发送了内容" 
+                    }))
+                ], 
+                temperature: 0.85 
+            });
+        } else if (model.includes('claude')) {
+            url = `${base.replace(/\/$/, '')}/v1/messages`;
+            headers['x-api-key'] = key;
+            headers['anthropic-version'] = '2023-06-01';
+            body = JSON.stringify({
+                model: model,
+                system: dynamicPrompt,
+                messages: cleanHistory.map(msg => ({
+                    role: msg.role === 'model' ? 'assistant' : 'user',
+                    content: msg.parts[0].text || "发送了内容"
+                })),
+                max_tokens: 2048
+            });
+        } else {
+            // Gemini 逻辑（支持看图与防错）
+            const cleanBase = base.replace(/\/$/, '');
+            url = cleanBase.includes('/v1beta') ? 
+                `${cleanBase}/models/${model}:generateContent?key=${key}` : 
+                `${cleanBase}/v1beta/models/${model}:generateContent?key=${key}`;
+            
+            body = JSON.stringify({
+                system_instruction: { parts: [{ text: dynamicPrompt }] }, 
+                contents: cleanHistory, 
+                generationConfig: { temperature: 0.85, maxOutputTokens: 2048 }
+            });
+        }
+
+        const res = await fetch(url, { method: 'POST', headers: headers, body: body });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message || "API Error");
+
+        let fullText = "";
+        if (data.choices) { 
+            fullText = data.choices[0].message.content;
+        } else if (data.content && Array.isArray(data.content) && data.content[0].text) { 
+            fullText = data.content[0].text;
+        } else if (data.candidates && data.candidates[0].content) { 
+            fullText = data.candidates[0].content.parts[0].text;
+        }
+
+        // 密码解锁日记权限
+        if (userInputText.includes("1111")) {
+            localStorage.setItem('k_ai_diary_auth', 'true');
+        }
+
+        messageHistory.push({ role: "model", parts: [{ text: fullText }] });
+        localStorage.setItem('k_history', JSON.stringify(messageHistory));
+
+        // 逐条气泡显示效果
+        const fragments = fullText.split(/\n+|(?<=[。！？])\s+/).filter(s => s.trim());
+        for (const f of fragments) {
+            const bubble = addBubble('ai', '');
+            await typeWriter(f, bubble);
+            await new Promise(r => setTimeout(r, 800));
+        }
+        extractMemorySilently(base, key, model, userInputText, fullText);
+
+    } catch (e) {
+        console.error(e);
+        addBubble('ai', "……（信号由于念压变得不稳定）");
+    } finally { 
+        isTyping = false; 
+    }
+}
             function typeWriter(text, element) {
                 return new Promise((resolve) => {
                     let i = 0;
