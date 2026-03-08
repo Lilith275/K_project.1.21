@@ -1038,9 +1038,13 @@ async tellAIWatching(song) {
                     this.playlist = JSON.parse(saved);
                     if (this.playlist.length > 0) {
                         setTimeout(() => this.renderPlaylist(), 100);
+                        
                     }
+
+                    
                 } catch (e) { console.error("缓存解析失败", e); }
             }
+            
 
             // 延迟检查登录状态
             setTimeout(() => {
@@ -1249,6 +1253,28 @@ async tellAIWatching(song) {
             `).join('');
             const listSec = document.getElementById('playlistSection');
             if(listSec) listSec.style.display = 'block';
+        },
+        // --- 删除单曲逻辑 ---
+        removeSong(index, event) {
+            // 1. 阻止事件冒泡，防止点击删除时意外触发播放
+            if (event) event.stopPropagation();
+
+            // 2. 从数组中移除对应下标的歌曲
+            if (index > -1) {
+                this.playlist.splice(index, 1);
+            }
+
+            // 3. 同步到本地缓存，确保持久化
+            localStorage.setItem('my_163_playlist', JSON.stringify(this.playlist));
+
+            // 4. 重新渲染列表，让界面即时更新
+            this.renderPlaylist();
+
+            // 5. 如果删光了，可以顺手把列表关掉
+            if (this.playlist.length === 0) {
+                const listSec = document.getElementById('playlistSection');
+                if (listSec) listSec.style.display = 'none';
+            }
         },
 
 async play(index) {
