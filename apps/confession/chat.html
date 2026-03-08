@@ -734,7 +734,13 @@ function initEmoji() {
 
             // API 调用逻辑（完全保留你的设置）
     async function fetchAI(base, key, model, userInputText) {
-                isTyping = true;
+    // --- 核心修复：如果传进来的内容是空的，直接返回，不执行后面的逻辑 ---
+    if (!userInputText || typeof userInputText !== 'string') {
+        console.warn("[后台提醒] 收到无效的文本请求，已跳过处理防止报错。");
+        return; 
+    }
+
+    isTyping = true;
                 try {
                     // === 新增：从生活手册读取上下文 (不修改原始逻辑，仅作为变量注入) ===
                     let lifeManualInfo = "";
