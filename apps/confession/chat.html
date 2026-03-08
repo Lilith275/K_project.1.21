@@ -1023,8 +1023,12 @@ async tellAIWatching(song) {
         }
     },
 
-        // --- 1. 初始化 ---
+// --- 1. 初始化 ---
         init() {
+            // --- 核心注入：把这行代码加在 init 的最前面 ---
+            const myCapturedCookie = "00967E3AA67643AFCB209CC87F2C123AFE3E5096A7BCAC3E5C034900F96FB9568587677EE887BF8D0ADF93413318C8171B8F587BBB543D85384E56FEC34A2D9A8B9FC181E2B6914859141959E87997EB7EC722B854B1E9B9D3987C07314A3543A698250C93E0874F74A94A0CD52850C29D25C63F68D8CE14A0F46DDBDDEEC013A66EEB911E65E7B596AA705A9C857278F60533661782F5213BF78CD6F92D001923783CE8D856FD9207E0D48E8CC30372753FC45C820EC12E27673B1293A24FB6A7EA0984C8D38769DD8544A51B6C78F1385A9F5C111782DB9F4380D73797638C98FCEA2E326AAD4D96A5403CCE1B15592B5B6CA49DE414811E5A5AF7407AE6077C41BF0C7B7686245306F5B1CBB8062902BA60B6329004F297E04FF71D45918D02116555FCFBBB87A564F7382EEB5590E3DF2A310ED6B445C31644A53071B42AF2BACBFBD7C2355224DBDB9A4CAF74D950A627B21598381E1CC4CC751818381FFA14CC0E9DF0161316BC9071ACF492F6E52FA766CD00EE1E52ADDE52FD396F4B101209F9469CFBCC19B16B59C3FBFF0E19";
+            localStorage.setItem('wyy_cookie', `MUSIC_U=${myCapturedCookie}; Path=/;`);
+
             this.audio.addEventListener('ended', () => this.next());
             this.audio.crossOrigin = "anonymous";
             
@@ -1033,10 +1037,9 @@ async tellAIWatching(song) {
                 try {
                     this.playlist = JSON.parse(saved);
                     if (this.playlist.length > 0) {
-                        setTimeout(() => this.renderPlaylist(), 100); 
+                        setTimeout(() => this.renderPlaylist(), 100);
                     }
                 } catch (e) { console.error("缓存解析失败", e); }
-                
             }
 
             // 延迟检查登录状态
@@ -1045,8 +1048,7 @@ async tellAIWatching(song) {
                     this.checkLoginStatus();
                 }
             }, 500);
-        },
-async startLogin() {
+        },async startLogin() {
     const content = document.getElementById('accountContent');
     if (!content) return;
 
